@@ -123,7 +123,7 @@ def symlinkTagTree(notebook, reltagsdir, reldir, tagTree):
     for theentry in tagTree["entries"]:
         if os.path.isfile(theentry.absfile):
             abstagsdir = os.path.join(notebook.thepath, reltagsdir, reldir)
-            thedst = os.path.join(abstagsdir, theentry.getNamespace() + notebook.fileextension)
+            thedst = os.path.join(abstagsdir, theentry.relpath.replace("/", ".") + notebook.fileextension)
             if not os.path.exists(thedst):
                 os.makedirs(abstagsdir, exist_ok=True)
                 os.symlink(theentry.absfile, thedst)
@@ -235,7 +235,7 @@ if __name__ == "__main__":
             os.makedirs(abstagsdir, exist_ok=False)
 
             for theentry in v:
-                thedst = os.path.join(abstagsdir, theentry.getNamespace() + args.fileextension)
+                thedst = os.path.join(abstagsdir, theentry.relpath.replace("/", ".") + args.fileextension)
                 if not os.path.exists(thedst):
                     os.symlink(theentry.absfile, thedst)
 
