@@ -253,6 +253,7 @@ if __name__ == "__main__":
             for thetag in v:
                 if removeRegex.match(thetag) is not None:
                     k.removeTags(theregex=fullRemoveRegex)
+                    break
             #        matchingTags.append("@" + thetag)
             #if len(matchingTags) != 0:
             #    k.removeTags(theregex=fullRemoveRegex)
