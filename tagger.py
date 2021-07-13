@@ -48,16 +48,16 @@ class NotebookEntry:
 
         return list(result.keys())
 
-    def removeTags(self, thefulltags):
+    def removeTags(self, theregex):
         if os.path.isfile(self.absfile):
             filecontent = []
             filechanged = False
             with open(self.absfile, "r", encoding=self.notebook.theencoding) as f:
                 for line in f:
-                    #newline = theregex.sub("", line)
-                    newline = line
-                    for thetag in thefulltags:
-                        newline = newline.replace(thetag, "")
+                    newline = theregex.sub("", line)
+                    #newline = line
+                    #for thetag in thefulltags:
+                    #    newline = newline.replace(thetag, "")
                     filecontent.append(newline)
                     if line != newline:
                         filechanged = True
@@ -245,16 +245,17 @@ if __name__ == "__main__":
     elif args.mode == "remove":
         if len(args.removeTagRegex) == 0:
             raise Exception("no tagname regex provided")
-        #fullRemoveRegex = re.compile(r"@" + args.removeTagRegex)
+        fullRemoveRegex = re.compile(r"(?<!\w)@" + args.removeTagRegex + r"\b")
         removeRegex = re.compile(args.removeTagRegex)
 
         for k, v in tagDict.items():
             matchingTags = []
             for thetag in v:
                 if removeRegex.match(thetag) is not None:
-                    matchingTags.append("@" + thetag)
-            if len(matchingTags) != 0:
-                k.removeTags(thefulltags=matchingTags)
+                    k.removeTags(theregex=fullRemoveRegex)
+            #        matchingTags.append("@" + thetag)
+            #if len(matchingTags) != 0:
+            #    k.removeTags(theregex=fullRemoveRegex)
 
     else:
         raise Exception("unknown mode")
