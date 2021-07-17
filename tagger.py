@@ -10,7 +10,9 @@ import shutil
 from itertools import permutations
 
 
-TAG_REGEX = re.compile(r"(?<!\w)@(\w+)")
+TAG_PREFIX = r"(?<!\w)@"
+TAG_POSTFIX = r"(?=\b)"
+TAG_REGEX = re.compile(TAG_PREFIX + r"(\w+)" + TAG_POSTFIX)
 TODO_REGEX = re.compile(r"\[(.)\]")
 FILENAME_REGEX = re.compile(r"[^\w\[\] _-]")
 UNTAGGED_TAG = "_untagged"
@@ -48,16 +50,13 @@ class NotebookEntry:
 
         return list(result.keys())
 
-    def removeTags(self, theregex):
+    def removeTags(self, fullRemoveRegex):
+        filechanged = False
         if os.path.isfile(self.absfile):
             filecontent = []
-            filechanged = False
             with open(self.absfile, "r", encoding=self.notebook.theencoding) as f:
                 for line in f:
-                    newline = theregex.sub("", line)
-                    #newline = line
-                    #for thetag in thefulltags:
-                    #    newline = newline.replace(thetag, "")
+                    newline = fullRemoveRegex.sub("", line)
                     filecontent.append(newline)
                     if line != newline:
                         filechanged = True
@@ -66,6 +65,7 @@ class NotebookEntry:
                 with open(self.absfile, "w", encoding=self.notebook.theencoding) as f:
                     for line in filecontent:
                         f.write(line)
+        return filechanged
 
     def getNamespace(self):
         return self.relpath.replace("_", " ").replace(os.path.sep, ":")
@@ -106,6 +106,15 @@ class Notebook:
         tagDict = {}
         self._findAllTags(notebookEntry=self.root, tagDict=tagDict)
         return tagDict
+
+    def _removeTags(self, notebookEntry, fullRemoveRegex):
+        notebookEntry.removeTags(fullRemoveRegex=fullRemoveRegex)
+        for thechild in notebookEntry.getChildren():
+            self._removeTags(notebookEntry=thechild, fullRemoveRegex=fullRemoveRegex)
+
+    def removeTags(self, regexPartStr):
+        fullRemoveRegex = re.compile(TAG_PREFIX + regexPartStr + TAG_POSTFIX)
+        self._removeTags(notebookEntry=self.root, fullRemoveRegex=fullRemoveRegex)
 
 
 def tagTree(tagDict):
@@ -171,7 +180,7 @@ if __name__ == "__main__":
     argParse = argparse.ArgumentParser()
     argParse.add_argument("--notebookpath", required=True)
     argParse.add_argument("--mode", required=True)
-    argParse.add_argument("--removeTagRegex")
+    argParse.add_argument("--removeRegexPart")
     argParse.add_argument("--fileextension", default=".txt")
     argParse.add_argument("--reltagsdir", default="00-Tags")
     argParse.add_argument("--reltagsfile", default="00-Tags.md")
@@ -180,9 +189,9 @@ if __name__ == "__main__":
     args = argParse.parse_args()
 
     notebook = Notebook(thepath=args.notebookpath, fileextension=args.fileextension)
-    tagDict = notebook.findAllTags()
 
     if args.mode == "tagsfile":
+        tagDict = notebook.findAllTags()
         theTagTree = tagTree(tagDict)
         if not args.includeUntagged:
             theTagTree["tags"].pop("_untagged", None)
@@ -198,6 +207,7 @@ if __name__ == "__main__":
                 raise Exception("unknown file format")
 
     elif args.mode == "flattagsfile":
+        tagDict = notebook.findAllTags()
         flatTagDict = flattenTagDict(tagDict=tagDict)
         if not args.includeUntagged:
             flatTagDict.pop("_untagged", None)
@@ -207,7 +217,7 @@ if __name__ == "__main__":
                 f.write("# Tags\n")
                 for k, v in sorted(flatTagDict.items()):
                     f.write("\n## " + k + "\n")
-                    for theentry in sorted(v):
+                    for theentry in sorted(v, key=lambda x: x.relpath):
                         f.write("- [](" + theentry.relpath + ")\n")
 
         elif args.fileformat == "zim":
@@ -221,6 +231,7 @@ if __name__ == "__main__":
             raise Exception("unknown file format")
 
     elif args.mode == "symlink":
+        tagDict = notebook.findAllTags()
         theTagTree = tagTree(tagDict)
         absdir = os.path.join(args.notebookpath, args.reltagsdir)
         if os.path.exists(absdir):
@@ -228,6 +239,7 @@ if __name__ == "__main__":
         symlinkTagTree(notebook=notebook, reldir="", reltagsdir=args.reltagsdir, tagTree=theTagTree)
 
     elif args.mode == "flatsymlink":
+        tagDict = notebook.findAllTags()
         flatTagDict = flattenTagDict(tagDict=tagDict)
         absdir = os.path.join(args.notebookpath, args.reltagsdir)
         if os.path.exists(absdir):
@@ -243,20 +255,10 @@ if __name__ == "__main__":
                     os.symlink(theentry.absfile, thedst)
 
     elif args.mode == "remove":
-        if len(args.removeTagRegex) == 0:
-            raise Exception("no tagname regex provided")
-        fullRemoveRegex = re.compile(r"(?<!\w)@" + args.removeTagRegex + r"\b")
-        removeRegex = re.compile(args.removeTagRegex)
+        if len(args.removeRegexPart.strip()) == 0:
+            raise Exception("no removeRegexPart provided")
 
-        for k, v in tagDict.items():
-            matchingTags = []
-            for thetag in v:
-                if removeRegex.match(thetag) is not None:
-                    k.removeTags(theregex=fullRemoveRegex)
-                    break
-            #        matchingTags.append("@" + thetag)
-            #if len(matchingTags) != 0:
-            #    k.removeTags(theregex=fullRemoveRegex)
+        notebook.removeTags(regexPartStr=args.removeRegexPart)
 
     else:
         raise Exception("unknown mode")
